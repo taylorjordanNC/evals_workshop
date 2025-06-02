@@ -1,0 +1,110 @@
+:experimental: true
+:imagesdir: ../assets/images
+:toc: false
+:numbered: true
+
+# Activity 2: Evaluating Model Accuracy with lm-eval-harness
+
+While performance metrics like latency and throughput are critical for deploying efficient GenAI systems, accuracy and task-level evaluation are equally essential when selecting or fine-tuning a model. In this activity, we use the popular lm-eval-harness framework to systematically measure how well a language model performs across a variety of established NLP tasks.
+
+## What is lm-eval-harness?
+
+lm-eval-harness is a community-maintained benchmarking framework developed by **EleutherAI**. It enables consistent, reproducible evaluation of large language models (LLMs) across dozens of academic and real-world benchmarks, such as:
+
+* MMLU (Massive Multitask Language Understanding)
+
+* HellaSwag, ARC, and Winogrande
+
+* Question answering, common sense reasoning, reading comprehension, and more
+
+The framework supports both open-source models and OpenAI-compatible endpoints, and can be customized with additional tasks, prompt templates, and evaluation metrics.
+
+## MMLU-Pro
+
+Today we will be running the mmlu_pro evaluation. 
+
+**MMLU-Pro** is a reasoning-focused, multiple-choice benchmark derived from the original MMLU dataset. It contains 10-answer multiple-choice questions across a range of subjects designed to challenge a model’s ability to perform complex reasoning and factual recall — key skills for enterprise-grade AI applications.
+
+## Today's Activity
+
+This activity uses a wrapper around lm-eval-harness and IBM’s Unitxt to make evaluation easier against locally hosted models via OpenAI-compatible inference endpoints like vLLM. It simplifies dataset downloads, task configuration, and results formatting—allowing you to quickly test your model on benchmarks like MMLU-Pro.
+
+In this hands-on example, you’ll:
+
+. Set up datasets using the CLI
+
+. Run accuracy benchmarks against a vLLM-served model
+
+. Explore how our model performs across standardized tasks
+
+### Getting Started
+
+Activate the same python virtual environment we used in the last activity, located in `/home/dev` and install our llm-eval-test package.
+
+[source,console,role=execute,subs=attributes+]
+----
+source venv/bin/activate
+pip install git+https://github.com/sjmonson/llm-eval-test.git
+----
+
+### View the CLI options
+[source,console,role=execute,subs=attributes+]
+----
+llm-eval-test run --help
+----
+
+
+View our https://github.com/openshift-psap/llm-eval-test[repository] here.
+
+### Prepare directory for dataset
+
+[source,console,role=execute,subs=attributes+]
+----
+DATASETS_DIR=$(pwd)/datasets
+mkdir $DATASETS_DIR
+DATASET=TIGER-Lab/MMLU-Pro
+----
+
+### Download dataset for testing
+
+[source,console,role=execute,subs=attributes+]
+----
+llm-eval-test download --datasets $DATASETS_DIR --tasks mmlu_pro
+----
+
+### Set Variables
+
+[source,console,role=execute,subs=attributes+]
+----
+ENDPOINT=http://localhost:8000/v1/completions
+MODEL_NAME=ibm-granite/granite-3.3-2b-instruct
+TOKENIZER=ibm-granite/granite-3.3-2b-instruct
+----
+
+### Run the evaluation
+
+[source,console,role=execute,subs=attributes+]
+----
+llm-eval-test run --endpoint $ENDPOINT --model $MODEL_NAME --datasets $DATASETS_DIR --tasks mmlu_pro
+----
+
+This will take about 10 minutes or so to process. 
+
+## Evaluating Results
+
+**Accuracy**: The primary metric is multiple-choice accuracy, indicating how often the model selects the correct answer from 10 options.
+
+* ~10% = random guessing baseline
+
+* ~30–50% = typical for smaller or untuned models
+
+* ~60–70%+ = high reasoning capability or fine-tuned performance
+
+**Per-subject Scores**: Breakdowns by subject (e.g., philosophy, law, computer science) help identify a model’s strengths and weaknesses in specific domains.
+
+**Implications**: Higher MMLU-Pro accuracy generally correlates with better real-world task generalization, especially for tasks involving structured inputs, knowledge retrieval, and logic.
+
+## Summary
+
+This activity demonstrated how to evaluate model accuracy with standardized benchmarks, interpret results meaningfully, and align them with model selection or fine-tuning goals. It's a key part of building trustworthy GenAI systems that not only perform well, but reason effectively.
+

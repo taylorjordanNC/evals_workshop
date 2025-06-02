@@ -1,0 +1,162 @@
+:experimental: true
+:imagesdir: ../assets/images
+:toc: false
+:numbered: true
+
+# Activity 1: Evaluating System Performance with GuideLLM
+
+In Generative AI systems, evaluating system performance including latency, throughput, and resource utilization is just as important as evaluating model accuracy or quality. Here's why:
+
+. **User Experience**: High latency leads to sluggish interactions, which is unacceptable in chatbots, copilots, and real-time applications. Users expect sub-second responses.
+
+. **Scalability**: Throughput determines how many requests a system can handle in parallel. For enterprise GenAI apps, high throughput is essential to serve multiple users or integrate with high-frequency backend processes.
+
+. **Cost Efficiency**: Slow or inefficient systems require more compute to serve the same volume of requests. Optimizing performance directly reduces cloud GPU costs and improves ROI.
+
+. **Fair Benchmarking**: A model may appear “better” in isolated evaluation, but if it requires excessive inference time or hardware, it may not be viable in production. True model evaluation must balance quality and performance.
+
+. **Deployment Readiness**: Latency and throughput impact architectural decisions (e.g., batching, caching, distributed serving). Measuring them ensures a model is viable under real-world constraints.
+
+## Deploy Gen AI Model with vLLM
+
+Inference runtimes are the engines that turn a trained model into usable outputs. They handle the actual generation process during real-time use, so their efficiency directly affects latency, throughput, and resource usage. A poor runtime can bottleneck even the best model.
+
+vLLM is an open-source, high-performance inference engine optimized for large language models. It uses advanced techniques like PagedAttention and continuous batching to significantly improve throughput and reduce latency—especially for workloads with many concurrent users. It's designed to maximize GPU utilization and support production-scale deployment.
+
+### Setup Terminals
+
+You will need two active terminal sessions for this and subsequent activities. SSH into two terminal windows using your preferred terminal application.
+
+### Export HuggingFace token 
+
+Export HF token into the active session.
+
+[source,console,role=execute,subs=attributes+]
+----
+export HUGGING_FACE_HUB_TOKEN=<your actual huggingface token>
+----
+
+### Deploy vLLM container with model
+
+[source,console,role=execute,subs=attributes+]
+----
+sudo podman run --rm -it --entrypoint /bin/sh -e HF_HOME=/tmp/model-cache -e HUGGING_FACE_HUB_TOKEN -e HF_HUB_OFFLINE=0 -v vllm-models:/tmp/model-cache --device nvidia.com/gpu=all -p 8000:8000/tcp quay.io/vllm/vllm:0.8.3.0rc0 -c 'vllm serve ibm-granite/granite-3.3-2b-instruct'
+----
+
+You may try any other vLLM-supported models in addition to or in lieu of IBM's Granite model like `Qwen/Qwen2.5-7B-Instruct` from Hugging Face.
+
+## Install GuideLLM
+
+Activate preset python virtual environment located at `/home/dev` and then install GuideLLM using `pip`.
+
+[source,console,role=execute,subs=attributes+]
+----
+source venv/bin/activate
+pip install guidellm
+----
+
+* Peruse the available GuideLLM https://github.com/neuralmagic/guidellm?tab=readme-ov-file#configurations[configuration options]. 
+* The GitHub ReadMe gives detailed information about configuration flags
+* `guidellm benchmark --help` to check flag options in CLI
+
+### Run Standard Performance Evaluation
+
+The below command is based on the default command from the README.md. The rate variable is shortened to 5 to reduce the processing time. You may also change the rate-type to run only one benchmark at a time. Sweep will show us the default standard set of benchmarks.
+
+[source,console,role=execute,subs=attributes+]
+----
+guidellm benchmark \
+  --target http://localhost:8000 \
+  --model ibm-granite/granite-3.3-2b-instruct \
+  --rate-type sweep \
+  --rate 5 \
+  --max-seconds 30 \
+  --data "prompt_tokens=256,output_tokens=128"
+----
+
+You may consider, for different use cases, you will set different standardized dataset profiles that can be passed in as arguments in GuideLLM. For example the following variables represent input and output tokens, respectively, based on the given use case: 
+
+* **Chat (512/256)**
+* **RAG (4096/512)**
+* **Summarization (1024/256)**
+* **Code Generation (512/512)**
+
+Using these profiles, we can map specific i/o token scenarios to real-world use cases to make these runs more explainable to how this impacts applications.
+
+Adjust the given GuideLLM command to your liking. This will take a few minutes to process.
+
+
+### Evaluate Output and Adjust GuideLLM Settings
+
+GuideLLM captures the following metrics during a full sweep:
+
+. **Requests per Second**: Total requests completed per second
+
+. **Request concurrency**: average concurrent requests
+
+. **Output token per second (mean)**: output tokens per second
+
+. **Total tokens per second (mean)**: total (prompt + output) tokens per second
+
+. **Request latency in ms (mean, median, p99)**: total end to end request latency
+
+. **Time to First Token (mean, median, p99)**
+
+. **Inter-Token Latency (mean, median, p99)**
+
+. **Time per output token (mean, median, p99)**
+
+See the complete https://github.com/neuralmagic/guidellm/blob/main/docs/metrics.md[metrics documentation]. 
+
+### Reading Output
+
+#### Top Section (Benchmark Info)
+
+* Benchmark: The type of benchmark ran
+- constant@x indicates the number of requests sent constantly to the model per second.
+* Requests Made: How many requests issued (completed, incomplete or errors)
+* Token Data
+- Tok/Req: average tokens per request
+- Tok Total: total number of input/output tokens processed
+
+#### Bottom Section (Benchmark Stats)
+
+* Mean
+- Overall average
+- Good for general performance overview
+
+* Median
+- Typical experience
+- More stable, less skewed by outliers
+
+* P99
+- Worst-case real latency
+- Essential for SLOs and user experience under load
+
+### Adjusting GuideLLM Settings
+
+Depending on the results, try running GuideLLM a couple of different ways to see how the different controlled tests impact results.
+
+**Suggestions:**
+
+* Change `--data "prompt_tokens=x, output_tokens=x"` where the 2 x's represents the below use case configurations, respectively:
+
+- **Chat (512/256)**
+- **RAG (4096/512)**
+- **Summarization (1024/256)**
+- **Code Generation (512/512)**
+
+## Summary
+
+This activity demonstrated how to evaluate system performance using GuideLLM with a default vLLM configuration. In follow-up exercises, we would explore how to tune vLLM settings to optimize for different use cases and performance goals. 
+
+For example:
+
+* Adjusting batch size and max concurrency to improve throughput under load
+
+* Tuning model cache size to reduce cold starts and improve latency
+
+* Exploring speculative decoding and quantization for faster response times
+
+By configuring vLLM more precisely or your chosen inference runtime, you can better align model serving with application needs—whether you’re optimizing for cost, speed, or user experience.
+
